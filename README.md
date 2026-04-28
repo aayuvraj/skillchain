@@ -1,161 +1,208 @@
+<div align="center">
+
 # skillchain
 
 **Chain AI coding agent skills into pipelines.**
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Works with Claude](https://img.shields.io/badge/Claude%20Code-✓-blue)](https://claude.ai/code)
+[![Works with Codex](https://img.shields.io/badge/Codex-✓-green)](https://openai.com/codex)
+[![Works with Cursor](https://img.shields.io/badge/Cursor-✓-purple)](https://cursor.sh)
 
 ```
 /pipe review -> security-review -> commit
 ```
 
-One command. Three skills. Each step feeds context into the next.
+*Three skills. One command. Each step knows what the last one found.*
+
+</div>
 
 ---
 
 ## The Problem
 
-AI coding agents (Claude Code, Codex, Cursor, Aider, Claw) have powerful skills — but skills can't talk to each other.
+AI coding agents are powerful. Their skills are not.
 
-You run `/review`, read the output, manually copy context, then run `/security-review`, read that output, manually copy again, then write your commit message.
+Every skill is an island. You run `/review`, read the output, manually copy context, run `/security-review`, copy again, paste into your commit message. Three tools. Zero connection between them. Context lost at every handoff.
 
-Every skill is an island.
-
-## The Solution
-
-`skillchain` adds a `/pipe` skill to any agent. Chain skills with `->`. Output of each step becomes context for the next.
+This is the current state of AI-assisted development:
 
 ```
-/pipe explain -> refactor -> test -> commit
+You:  /review
+AI:   [finds 4 issues]
+
+You:  [manually copies issues]
+You:  /security-review
+AI:   [finds 3 vulns, unaware of the 4 issues above]
+
+You:  [manually copies everything]
+You:  write me a commit message
+AI:   [writes generic message, misses half the context]
 ```
 
-That's: understand the code → refactor it → write tests → commit — all in one command, each step aware of what the previous step found.
+**skillchain fixes this.**
 
 ---
 
-## Quick Start
+## The Solution
+
+```
+/pipe review -> security-review -> commit
+```
+
+That's it. Each step's output becomes context for the next. Your security review knows what the code review found. Your commit message knows what both found. No manual work. No lost context.
+
+```
+You:  /pipe review -> security-review -> commit
+
+AI:   Pipeline: review → security-review → commit
+      Running step 1/3: review...
+      [finds 4 issues]
+
+      Step 1 complete. Running step 2/3: security-review...
+      [finds 3 vulns, aware of the 4 issues from step 1]
+
+      Step 2 complete. Running step 3/3: commit...
+      [writes precise commit citing all 7 findings]
+
+      Pipeline complete.
+```
+
+---
+
+## Install
+
+**One file. No servers. No APIs. No configuration.**
 
 ### Claude Code
 
 ```bash
-pip install graphifyy
-graphify claude install     # installs /graphify to Claude Code
-```
-
-Then copy `skills/pipe/SKILL.md` to `~/.claude/skills/pipe/SKILL.md`:
-
-```bash
 mkdir -p ~/.claude/skills/pipe
-cp skills/pipe/SKILL.md ~/.claude/skills/pipe/SKILL.md
+curl -o ~/.claude/skills/pipe/SKILL.md \
+  https://raw.githubusercontent.com/aayuvraj/skillchain/main/skills/pipe/SKILL.md
 ```
 
-Now use it:
+Then in any Claude Code session:
 
 ```
-/pipe review -> security-review -> caveman-commit
+/pipe review -> security-review -> commit
 ```
 
 ### Other Agents
 
 | Agent | Install |
 |-------|---------|
-| Codex | Copy `SKILL.md` content into `AGENTS.md` |
-| Cursor | Copy `SKILL.md` content into `.cursor/rules/pipe.mdc` |
-| Aider | Copy `SKILL.md` content into `AGENTS.md` |
-| OpenCode | Copy `SKILL.md` content into `AGENTS.md` |
-| Claw | Copy `SKILL.md` content into `AGENTS.md` |
-| Gemini CLI | Copy `SKILL.md` content into `GEMINI.md` |
+| **Codex** | Append `skills/pipe/SKILL.md` contents to `AGENTS.md` |
+| **Cursor** | Copy to `.cursor/rules/pipe.mdc` |
+| **Aider** | Append to `AGENTS.md` |
+| **OpenCode** | Append to `AGENTS.md` |
+| **Claw** | Append to `AGENTS.md` |
+| **Gemini CLI** | Append to `GEMINI.md` |
+
+---
+
+## Pipelines
+
+### Code Review Gate
+```
+/pipe review -> security-review -> commit
+```
+Full quality + security pass before every commit. Catches issues at two layers, writes a commit that references both.
+
+### Understand Before Changing
+```
+/pipe explain -> refactor
+```
+Maps exactly what the code does before touching it. Prevents blind refactors that break hidden dependencies.
+
+### Feature End-to-End
+```
+/pipe plan -> implement -> test -> document
+```
+Spec → code → tests → docs. Each step builds on real output from the previous one, not hallucinated context.
+
+### Security-First Fix
+```
+/pipe security-review -> fix -> review -> commit
+```
+Find vulnerabilities, patch them, verify the fix, commit — all in one command.
+
+### Onboard a New Codebase
+```
+/pipe graphify -> explain -> document
+```
+Build a knowledge graph of the entire codebase, explain the architecture, generate `ARCHITECTURE.md`. First-day-on-the-job, done in one command. Requires [graphify](https://github.com/safishamsi/graphify).
+
+### PR-Ready
+```
+/pipe review -> document -> summarize
+```
+Review code, update inline docs, write the PR description. Open a PR that reviewers actually want to merge.
+
+> See the full [pipeline cookbook](./pipelines/) for more examples.
 
 ---
 
 ## How It Works
 
-`/pipe` is a meta-skill. When invoked:
+`/pipe` is a meta-skill — a single markdown file that teaches any AI agent how to chain skills.
 
-1. **Parses** the pipeline: splits on ` -> `, extracts skill names
-2. **Announces** the plan: `Pipeline: review → security-review → commit`
+When invoked:
+
+1. **Parses** the pipeline — splits on ` -> `, extracts skill names
+2. **Announces** the plan — `Pipeline: review → security-review → commit`
 3. **Executes step 1** fully, captures complete output
-4. **Transitions**: injects prior output as context for step 2
+4. **Transitions** — injects prior step's output as context prefix for step 2
 5. **Repeats** down the chain — each step is context-aware of all prior steps
-6. **Summarizes** the full pipeline result at the end
+6. **Summarizes** the full pipeline result
 
-No configuration files. No servers. No APIs. Pure prompt composition.
-
----
-
-## Example Pipelines
-
-```bash
-# Full code review pipeline
-/pipe review -> security-review -> commit
-
-# Understand before changing
-/pipe explain -> refactor
-
-# New feature end-to-end  
-/pipe plan -> implement -> test -> document
-
-# Security-first workflow
-/pipe security-review -> fix -> review -> commit
-
-# Onboarding a new codebase
-/pipe graphify -> explain -> document
-```
+The key insight: skills don't need to call each other programmatically. They just need context. `/pipe` handles the context threading so every skill in the chain knows exactly what happened before it.
 
 ---
 
 ## Why This Matters
 
-Current state of AI coding agents:
-
-- ✅ Individual skills are powerful
-- ❌ Skills are isolated — no composition
-- ❌ Context is lost between skill invocations
-- ❌ Workflows require manual copy-paste between steps
-
-`skillchain` fixes this with a single 100-line skill file that works across every major agent.
-
----
-
-## Skills That Work Well Together
-
-| Pipeline | What it does |
-|----------|--------------|
-| `review -> security-review -> commit` | Full quality gate before committing |
-| `explain -> refactor` | Understand first, then safely change |
-| `graphify -> query` | Build knowledge graph, then query it |
-| `plan -> implement -> test` | Spec → code → verify |
-| `review -> document -> summarize` | Review + auto-docs + PR summary |
-
----
-
-## Roadmap
-
-- [ ] **Conditional branching** — `if review fails -> fix -> review` retry loops
-- [ ] **Parallel steps** — `skill1 + skill2 -> merge -> skill3`
-- [ ] **Named pipelines** — save pipelines as reusable shortcuts
-- [ ] **Pipeline library** — community-contributed pipelines for common workflows
-- [ ] **Cross-agent pipelines** — run step 1 in Claude, step 2 in Codex
-- [ ] **skillchain CLI** — `skillchain run review -> security-review -> commit` from terminal
-
----
-
-## Contributing
-
-Add a new pipeline to the [Pipeline Library](#) or improve the `/pipe` skill for a specific agent.
-
-1. Fork the repo
-2. Add your pipeline example to `pipelines/` or improve `skills/pipe/SKILL.md`
-3. Open a PR
+| Without skillchain | With skillchain |
+|-------------------|-----------------|
+| 3 manual skill invocations | 1 command |
+| Context lost between steps | Full context carried forward |
+| Generic outputs per step | Each step aware of prior findings |
+| You copy-paste between tools | Pipeline handles handoffs |
+| Works with one agent | Works with 7+ agents |
 
 ---
 
 ## Philosophy
 
-Skills should compose. The best AI workflows are pipelines, not one-shots. `skillchain` brings Unix pipe philosophy to AI coding agents — small, focused skills chained into powerful workflows.
+Unix gave us `|`. One of the most powerful ideas in computing: small, focused tools chained into workflows greater than the sum of their parts.
 
-```
-skill1 | skill2 | skill3
+```bash
+cat file.txt | grep error | sort | uniq -c
 ```
 
-Just with context instead of stdout.
+AI coding agents have powerful tools. They just don't have `|` yet.
+
+skillchain is `|` for AI agents.
+
+---
+
+## Roadmap
+
+- [ ] Conditional branching — `if review:fail -> fix -> review`
+- [ ] Parallel steps — `skill1 + skill2 -> merge -> skill3`  
+- [ ] Named pipelines — save and reuse as shortcuts
+- [ ] Community pipeline library
+- [ ] Cross-agent pipelines — step 1 in Claude, step 2 in Codex
+
+---
+
+## Contributing
+
+Built a pipeline that saved you time? Add it to the [cookbook](./pipelines/).
+
+1. Fork
+2. Add your pipeline to `pipelines/your-pipeline.md`
+3. Open a PR
 
 ---
 
@@ -165,6 +212,12 @@ MIT
 
 ---
 
-**If this saved you time, star it.** It helps others find it.
+<div align="center">
 
-<!-- Keywords: claude code skills, codex agents, cursor rules, aider, ai coding agent, skill chaining, skill pipeline, claude pipe, agent workflow, slash command chaining -->
+**If this saved you time, a ⭐ helps others find it.**
+
+[github.com/aayuvraj/skillchain](https://github.com/aayuvraj/skillchain)
+
+</div>
+
+<!-- SEO: claude code skills, codex agents.md, cursor rules, aider, ai coding agent pipeline, skill chaining, slash command pipeline, agent workflow composer, claude pipe, skillchain -->
